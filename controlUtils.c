@@ -23,7 +23,7 @@ double differentiate(double value, double *previousValue, double timeStep);
 struct Vector3 rotate(double matrix[3][3], struct Vector3 input);
 struct Vector4 world2Wheels(double matrix[4][3], struct Vector3 input);
 struct Vector3 wheels2World(double matrix[3][4], struct Vector4 input);
-double applySecondOrderTransferFunction(double input, double *prevIn, double *prevOut, double *pprevOut, double *ppprevOut, double nCoeff[2], double dCoeff[3], double timeStep);
+double applySecondOrderTransferFunction(double u, double output, double u0, double y0, double du0, double dy0, double nCoeff[2], double dCoeff[3], double timeStep);
 struct Vector3 disturbanceObserver(struct Vector3 localBodyReference, struct Vector3 localBodyVelocity);
 struct Vector3 getScale(struct Vector4 controlOutput);
 struct Vector4 lowLevelControl(struct Vector4 input, struct Vector3 reference, double speed);
@@ -68,11 +68,18 @@ struct Vector3 humouringJelle(struct Vector3 input, double speed){
 	return output;
 }
 
-//allows for differentiation of a real time signal
+//allows for differentiation of a real time signal. Currently deprecated.
 double differentiate(double value, double *previousValue, double timeStep){
 	double output = (value - *previousValue)/timeStep;
 	*previousValue = value;
 
+	return output;
+}
+
+//allows for integration of a real time signal. prevOut should be declared as volatile. Euler's method
+double integrate(double value, double prevOut, double timeStep){
+	double output = prevOut + value*timeStep;
+	prevOut = value;
 	return output;
 }
 
@@ -112,48 +119,53 @@ struct Vector3 wheels2World(double matrix[3][4], struct Vector4 input){
 
 //Applies a transfer function to an input. This could be better designed using discrete methods.
 //Pay close attention to variable names. I had to make them concise so shit can be readable.
-double applySecondOrderTransferFunction(double input, double *prevIn, double *prevOut, double *pprevOut, double *ppprevOut, double nCoeff[2], double dCoeff[3], double timeStep){
+//Initial conditions and output should be volatile.
+double applySecondOrderTransferFunction(double u, double output, double u0, double y0, double du0, double dy0, double nCoeff[2], double dCoeff[3], double timeStep){
 
-	double output;
+	double term1 = nCoeff[0]*integrate(u,u0,timeStep);
+	double term2 = nCoeff[1]*integrate(integrate(u,u0,timeStep),du0,timeStep);
+	double term3 = nCoeff[0]*integrate(output,y0,timeStep);
+	double term4 = dCoeff[2]*integrate(integrate(output,y0,timeStep),dy0,timeStep);
 
-	double term1 = nCoeff[0]*differentiate(input,prevIn,timeStep);
-	double term2 = nCoeff[1]*input;
-	double term3 = dCoeff[0]*differentiate(differentiate(*prevOut,ppprevOut,timeStep),pprevOut,timeStep);
-	double term4 = dCoeff[1]*differentiate(*prevOut,pprevOut,timeStep);
-
-	output = (term1 + term2 + term3 + term4)/dCoeff[2];
+	output = (term1 + term2 - term3 - term4)/dCoeff[0];
 
 	return output;
 }
 
-//Takes in velocity and reference and outputs disturbance observer output.
-//Same thing with variable names.
+// Takes in velocity and reference and outputs disturbance observer output.
+// Same thing with variable names.
 struct Vector3 disturbanceObserver(struct Vector3 localBodyReference, struct Vector3 localBodyVelocity){
 
-	//initial values for the filters
-	static double prevFilter1Out = 0;
-	static double pprevFilter1Out = 0;
-	static double ppprevFilter1Out = 0;
-	static double prevFilter2Out = 0;
-	static double pprevFilter2Out = 0;
-	static double ppprevFilter2Out = 0;
-	static double prevFilter3Out = 0;
-	static double pprevFilter3Out = 0;
-	static double ppprevFilter3Out = 0;
+	//initial conditions
+	static double ua0 = 0;
+	static double dua0 = 0;
+	static double ya0 = 0;
+	static double dya0 = 0;
 
-	//initial values for the inverse plants
-	static double prevIP1In = 0;
-	static double prevIP1Out = 0;
-	static double pprevIP1Out = 0;
-	static double ppprevIP1Out = 0;
-	static double prevIP2In = 0;
-	static double prevIP2Out = 0;
-	static double pprevIP2Out = 0;
-	static double ppprevIP2Out = 0;
-	static double prevIP3In = 0;
-	static double prevIP3Out = 0;
-	static double pprevIP3Out = 0;
-	static double ppprevIP3Out = 0;
+	static double ub0 = 0;
+	static double dub0 = 0;
+	static double yb0 = 0;
+	static double dyb0 = 0;
+
+	static double uc0 = 0;
+	static double duc0 = 0;
+	static double yc0 = 0;
+	static double dyc0 = 0;
+
+	static double ud0 = 0;
+	static double dud0 = 0;
+	static double yd0 = 0;
+	static double dyd0 = 0;
+
+	static double ue0 = 0;
+	static double due0 = 0;
+	static double ye0 = 0;
+	static double dye0 = 0;
+
+	static double uf0 = 0;
+	static double duf0 = 0;
+	static double yf0 = 0;
+	static double dyf0 = 0;
 
 	//transfer function coefficients
 	double nFilterCoeff[2] = {0,1};
@@ -163,10 +175,17 @@ struct Vector3 disturbanceObserver(struct Vector3 localBodyReference, struct Vec
 
 	struct Vector3 output;
 
-	//arbitrary timestep
-	output.x = -1*applySecondOrderTransferFunction(localBodyReference.x,0,&prevFilter1Out,&pprevFilter1Out,&ppprevFilter1Out,nFilterCoeff,dFilterCoeff,1) + applySecondOrderTransferFunction(localBodyVelocity.x,&prevIP1In,&prevIP1Out,&pprevIP1Out,&ppprevIP1Out,nIPCoeff,dIPCoeff,1);
-	output.y = -1*applySecondOrderTransferFunction(localBodyReference.y,0,&prevFilter2Out,&pprevFilter2Out,&ppprevFilter2Out,nFilterCoeff,dFilterCoeff,1) + applySecondOrderTransferFunction(localBodyVelocity.y,&prevIP2In,&prevIP2Out,&pprevIP2Out,&ppprevIP2Out,nIPCoeff,dIPCoeff,1);
-	output.w = -1*applySecondOrderTransferFunction(localBodyReference.w,0,&prevFilter3Out,&pprevFilter3Out,&ppprevFilter3Out,nFilterCoeff,dFilterCoeff,1) + applySecondOrderTransferFunction(localBodyVelocity.w,&prevIP3In,&prevIP3Out,&pprevIP3Out,&ppprevIP3Out,nIPCoeff,dIPCoeff,1);
+	//arbitrary timestep.
+	double interimOutput1 = applySecondOrderTransferFunction(localBodyReference.x,interimOutput1,ua0,ya0,dua0,dya0,nFilterCoeff,dFilterCoeff,1);
+	double interimOutput2 = applySecondOrderTransferFunction(localBodyVelocity.x,interimOutput2,ub0,yb0,dub0,dyb0,nIPCoeff,dIPCoeff,1);
+	double interimOutput3 = applySecondOrderTransferFunction(localBodyReference.y,interimOutput3,uc0,yc0,duc0,dyc0,nFilterCoeff,dFilterCoeff,1);
+	double interimOutput4 = applySecondOrderTransferFunction(localBodyVelocity.y,interimOutput4,ud0,yd0,dud0,dyd0,nIPCoeff,dIPCoeff,1);
+	double interimOutput5 = applySecondOrderTransferFunction(localBodyReference.w,interimOutput5,ue0,ye0,due0,dye0,nFilterCoeff,dFilterCoeff,1);
+	double interimOutput6 = applySecondOrderTransferFunction(localBodyVelocity.w,interimOutput6,uf0,yf0,duf0,dyf0,nIPCoeff,dIPCoeff,1);
+
+	output.x = -1*interimOutput1 + interimOutput2;
+	output.y = -1*interimOutput3 + interimOutput4;
+	output.w = -1*interimOutput5 + interimOutput6;
 
 	return output;
 }
