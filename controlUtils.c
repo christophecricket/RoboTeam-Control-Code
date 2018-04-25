@@ -1,4 +1,3 @@
-//pass by references could be replaced by volatiles if they don't work
 #include <stdio.h>
 #include <math.h>
 
@@ -29,6 +28,7 @@ struct Vector3 getScale(struct Vector4 controlOutput);
 struct Vector4 lowLevelControl(struct Vector4 input, struct Vector3 reference, double speed);
 double limiter(double a,double b);
 struct Vector3 humouringJelle(struct Vector3 input, double speed);
+double integrate(double value, double *prevOut, double timeStep);
 
 //main is here for testing.
 void main(void){
@@ -76,10 +76,10 @@ double differentiate(double value, double *previousValue, double timeStep){
 	return output;
 }
 
-//allows for integration of a real time signal. prevOut should be declared as volatile. Euler's method
-double integrate(double value, double prevOut, double timeStep){
-	double output = prevOut + value*timeStep;
-	prevOut = value;
+//allows for integration of a real time signal. prevOut should be declared as volatile. Euler's method is used here.
+double integrate(double value, double *prevOut, double timeStep){
+	double output = *prevOut + value*timeStep;
+	*prevOut = output;
 	return output;
 }
 
@@ -122,10 +122,10 @@ struct Vector3 wheels2World(double matrix[3][4], struct Vector4 input){
 //Initial conditions and output should be volatile.
 double applySecondOrderTransferFunction(double u, double output, double u0, double y0, double du0, double dy0, double nCoeff[2], double dCoeff[3], double timeStep){
 
-	double term1 = nCoeff[0]*integrate(u,u0,timeStep);
-	double term2 = nCoeff[1]*integrate(integrate(u,u0,timeStep),du0,timeStep);
-	double term3 = nCoeff[0]*integrate(output,y0,timeStep);
-	double term4 = dCoeff[2]*integrate(integrate(output,y0,timeStep),dy0,timeStep);
+	double term1 = nCoeff[0]*integrate(u,&u0,timeStep);
+	double term2 = nCoeff[1]*integrate(integrate(u,&u0,timeStep),&du0,timeStep);
+	double term3 = nCoeff[0]*integrate(output,&y0,timeStep);
+	double term4 = dCoeff[2]*integrate(integrate(output,&y0,timeStep),&dy0,timeStep);
 
 	output = (term1 + term2 - term3 - term4)/dCoeff[0];
 

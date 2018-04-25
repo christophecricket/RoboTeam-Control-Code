@@ -17,7 +17,13 @@ struct Vector4 {
 };
 
 struct Vector3 disturbanceObserver(struct Vector3 localBodyReference, struct Vector3 localBodyVelocity){
-	return localBodyReference;																				//Will be made into an actual disturbance observer when Jelle decides what he wants
+	
+	struct Vector3 output;
+	output.x = 0;
+	output.y = 0;
+	output.w = 0;
+
+	return output;																				//Will be made into an actual disturbance observer now :)
 }
 
 //multiplies a 4*3 matrix by a vector of 4 elements. Tested.
