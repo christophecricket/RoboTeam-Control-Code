@@ -67,7 +67,9 @@ struct Vector3 pController(struct Vector3 input, struct Vector3 kp){
 }
 
 struct Vector3 limiter(struct Vector3 input,double maxEl){
+
 	double scale;
+
 	if (maxEl > 0.095){
 		scale = 0.095/maxEl;
 	}
@@ -110,7 +112,7 @@ struct Vector4 controller(struct Vector3 reference, struct Vector4 encoderData, 
 	controllerGain.y = 2000;
 	controllerGain.w = 400;
 
-	struct Vector3 limitedError = pController(error,controllerGain);//the 3 is completely arbitrary. Obviously needs tuning.
+	struct Vector3 limitedError = pController(error,controllerGain);
 
 	struct Vector3 placeholder = *observerOutput;
 
@@ -119,13 +121,17 @@ struct Vector4 controller(struct Vector3 reference, struct Vector4 encoderData, 
 	postObserverError.y = limitedError.y - placeholder.y;
 	postObserverError.w = limitedError.w - placeholder.w;
 
-	struct Vector4 output = body2Wheels(w2w,postObserverError);
+	struct Vector4 intermediaryOutput = body2Wheels(w2w,postObserverError);
 
-	double maxEl = fmax(fmax(output.a,output.b),fmax(output.c,output.d))*0.0000015;
+	double maxEl = fmax(fmax(intermediaryOutput.a,intermediaryOutput.b),fmax(intermediaryOutput.c,intermediaryOutput.d))*0.0000015;
 	
 	struct Vector3 disturbanceObserverInput = limiter(postObserverError,maxEl);
 
-	placeholder = disturbanceObserver(xsensInput,disturbanceObserverInput);
+	struct Vector4 output = body2Wheels(w2w,disturbanceObserverInput);
+
+
+
+	*observerOutput = disturbanceObserver(xsensInput,disturbanceObserverInput);
 
 	return output;
 }
