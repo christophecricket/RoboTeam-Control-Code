@@ -59,12 +59,11 @@ struct Vector3 rotate(double yaw, struct Vector3 input){
 	return output;
 }
 
-//p should maybe become a vector. TBD
-struct Vector3 pController(struct Vector3 input, double p){
+struct Vector3 pController(struct Vector3 input, struct Vector3 kp){
 	struct Vector3 output;
-	output.x = p*input.x;
-	output.y = p*input.y;
-	output.w = input.w;
+	output.x = kp.x*input.x;
+	output.y = kp.y*input.y;
+	output.w = kp.w*input.w;
 }
 
 struct Vector3 limiter(struct Vector3 input,double maxEl){
@@ -106,7 +105,12 @@ struct Vector4 controller(struct Vector3 reference, struct Vector4 encoderData, 
 	error.y = localReference.y - localVel.y;
 	error.w = localReference.w - localVel.w;
 
-	struct Vector3 limitedError = pController(error,3);//the 3 is completely arbitrary. Obviously needs tuning.
+	struct Vector3 controllerGain;
+	controllerGain.x = 2000;
+	controllerGain.y = 2000;
+	controllerGain.w = 400;
+
+	struct Vector3 limitedError = pController(error,controllerGain);//the 3 is completely arbitrary. Obviously needs tuning.
 
 	struct Vector3 placeholder = *observerOutput;
 
